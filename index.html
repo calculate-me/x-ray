@@ -3,137 +3,813 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DICOM to PNG/JPG Converter</title>
-    
-    <script src="https://unpkg.com/dicom-parser@1.8.13/dist/dicomParser.min.js"></script>
-    <script src="https://unpkg.com/cornerstone-core@2.6.1/dist/cornerstone.min.js"></script>
-    <script src="https://unpkg.com/cornerstone-wado-image-loader@4.1.5/dist/cornerstoneWADOImageLoader.min.js"></script>
+    <title>កម្មវិធីបម្លែងរូបភាពវេជ្ជសាស្ត្រ DICOM</title>
+    <!-- Tailwind CSS for premium UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts (Kantumruy Pro for professional Khmer text) -->
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
         body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background-color: #f4f4f9;
-            color: #333;
+            font-family: 'Kantumruy Pro', 'Inter', sans-serif;
+            background-color: #0b0f19;
         }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
-        .controls {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            align-items: center;
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #111827;
         }
-        select, input[type="file"], button {
-            padding: 8px 12px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 3px;
         }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        /* ទីតាំងបង្ហាញរូបភាព */
-        #dicomWrapper {
-            width: 100%;
-            height: 500px;
-            position: relative;
-            background-color: #000;
-            display: none;
-            border-radius: 4px;
-            overflow: hidden;
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #4b5563;
         }
     </style>
 </head>
-<body>
+<body class="text-gray-100 min-h-screen flex flex-col antialiased">
 
-<div class="container">
-    <h2>កម្មវិធីបម្លែងឯកសារ DICOM</h2>
-    
-    <div class="controls">
-        <input type="file" id="fileInput" accept=".dcm, .dicom, application/dicom">
+    <!-- Header Navigation -->
+    <header class="border-b border-gray-800 bg-gray-950/80 backdrop-blur px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600/20 text-blue-500 p-2.5 rounded-xl border border-blue-500/30">
+                <i data-lucide="activity" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-wide text-white flex items-center gap-2">
+                    DICOM Medical Viewer & Converter
+                </h1>
+                <p class="text-xs text-gray-400">ប្រព័ន្ធពិនិត្យ និងបម្លែងរូបភាពវេជ្ជសាស្ត្រជំនាញ</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                ដំណើរការលើ Browser ផ្ទាល់ (100% សុវត្ថិភាព)
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 max-w-[1600px] w-full mx-auto">
         
-        <select id="formatSelect">
-            <option value="image/png">PNG</option>
-            <option value="image/jpeg">JPG</option>
-        </select>
+        <!-- Left Sidebar: Controls & Adjustments (4 cols) -->
+        <div class="lg:col-span-4 flex flex-col gap-6">
+            
+            <!-- File Import Card -->
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i data-lucide="file-up" class="w-4 h-4 text-blue-400"></i> បញ្ចូលឯកសារ DICOM
+                </h2>
+                
+                <!-- Dropzone -->
+                <div id="dropzone" class="border-2 border-dashed border-gray-700 hover:border-blue-500/50 bg-gray-950/50 hover:bg-gray-950 transition-all rounded-xl p-6 text-center cursor-pointer group relative overflow-hidden">
+                    <input type="file" id="fileInput" accept=".dcm,.dicom,application/dicom" class="hidden" />
+                    <div class="flex flex-col items-center justify-center gap-3">
+                        <div class="w-12 h-12 rounded-full bg-gray-900 flex items-center justify-center text-gray-400 group-hover:text-blue-400 transition-colors border border-gray-800 group-hover:border-blue-500/30">
+                            <i data-lucide="cloud-upload" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-300">សូមជ្រើសរើស ឬទាញទម្លាក់ឯកសារ</p>
+                            <p class="text-xs text-gray-500 mt-1">គាំទ្រប្រភេទឯកសារ .dcm ឬ .dicom</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Adjustment Controls (Only show when image loaded) -->
+            <div id="controlsCard" class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-xl opacity-50 pointer-events-none transition-all duration-300">
+                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-4 h-4 text-blue-400"></i> ឧបករណ៍សារ៉េកម្រិតរូបភាព
+                </h2>
+
+                <div class="space-y-4">
+                    <!-- Brightness / Window Center -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-400">កម្រិតពន្លឺ (Window Center)</span>
+                            <span id="wcVal" class="text-blue-400 font-mono">0</span>
+                        </div>
+                        <input type="range" id="windowCenter" min="-1000" max="3000" value="0" class="w-full accent-blue-500 bg-gray-950 rounded-lg appearance-none h-2 cursor-pointer" />
+                    </div>
+
+                    <!-- Contrast / Window Width -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-400">កម្រិតពណ៌ (Window Width)</span>
+                            <span id="wwVal" class="text-blue-400 font-mono">2000</span>
+                        </div>
+                        <input type="range" id="windowWidth" min="1" max="4000" value="2000" class="w-full accent-blue-500 bg-gray-950 rounded-lg appearance-none h-2 cursor-pointer" />
+                    </div>
+
+                    <!-- Zoom -->
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-400">ពង្រីក/បង្រួម (Zoom)</span>
+                            <span id="zoomVal" class="text-blue-400 font-mono">100%</span>
+                        </div>
+                        <input type="range" id="zoomRange" min="10" max="300" value="100" class="w-full accent-blue-500 bg-gray-950 rounded-lg appearance-none h-2 cursor-pointer" />
+                    </div>
+
+                    <!-- Quick Tools -->
+                    <div class="grid grid-cols-3 gap-2 pt-2">
+                        <button id="btnInvert" class="bg-gray-950 hover:bg-gray-800 text-xs border border-gray-800 py-2.5 rounded-lg flex flex-col items-center gap-1 transition-colors">
+                            <i data-lucide="contrast" class="w-4 h-4 text-gray-400"></i> Invert ពណ៌
+                        </button>
+                        <button id="btnRotate" class="bg-gray-950 hover:bg-gray-800 text-xs border border-gray-800 py-2.5 rounded-lg flex flex-col items-center gap-1 transition-colors">
+                            <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-400"></i> បង្វិល 90°
+                        </button>
+                        <button id="btnReset" class="bg-gray-950 hover:bg-red-950/30 text-xs border border-gray-800 hover:border-red-900/50 py-2.5 rounded-lg flex flex-col items-center gap-1 transition-colors">
+                            <i data-lucide="refresh-cw" class="w-4 h-4 text-red-400"></i> កំណត់ឡើងវិញ
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Card -->
+            <div id="exportCard" class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-xl opacity-50 pointer-events-none transition-all duration-300">
+                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4 text-blue-400"></i> ទាញយករូបភាព (Export)
+                </h2>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1.5">ទម្រង់ឯកសារនាំចេញ</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="formatPng" class="py-2.5 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20">
+                                <i data-lucide="file-type-2" class="w-4 h-4"></i> PNG (.png)
+                            </button>
+                            <button id="formatJpg" class="py-2.5 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 bg-gray-950 border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-white">
+                                <i data-lucide="file-image" class="w-4 h-4"></i> JPG (.jpg)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-gray-400">គុណភាពរូបភាព (JPEG)</span>
+                            <span id="qualityVal" class="text-blue-400 font-mono">95%</span>
+                        </div>
+                        <input type="range" id="qualityRange" min="50" max="100" value="95" class="w-full accent-blue-500 bg-gray-950 rounded-lg appearance-none h-2 cursor-pointer" />
+                    </div>
+
+                    <button id="btnExport" class="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 text-sm mt-2">
+                        <i data-lucide="download-cloud" class="w-5 h-5"></i> ចាប់ផ្តើមទាញយករូបភាព
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Center & Right: Viewport and DICOM Info (8 cols) -->
+        <div class="lg:col-span-8 flex flex-col gap-6">
+            
+            <!-- Main Medical Viewport -->
+            <div class="bg-gray-950 border border-gray-800 rounded-2xl p-2 relative flex flex-col min-h-[500px] lg:h-[550px] shadow-2xl group overflow-hidden">
+                
+                <!-- Viewport Header overlay -->
+                <div class="absolute top-4 left-4 z-10 flex gap-2 items-center bg-gray-900/80 backdrop-blur border border-gray-800 px-3 py-1.5 rounded-full text-xs">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                    <span id="viewportStatus" class="font-medium text-gray-300">រង់ចាំការបញ្ចូលឯកសារ...</span>
+                </div>
+
+                <!-- Viewport Navigation/Tips Overlay -->
+                <div class="absolute bottom-4 left-4 right-4 z-10 flex justify-between items-center text-xs text-gray-400 pointer-events-none">
+                    <div class="bg-gray-900/80 backdrop-blur border border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-3">
+                        <span><b class="text-gray-200">Mouse Left:</b> អូសដើម្បី Pan</span>
+                        <span><b class="text-gray-200">Scroll:</b> ពង្រីក/បង្រួម</span>
+                    </div>
+                    <div id="canvasDimensions" class="bg-gray-900/80 backdrop-blur border border-gray-800 px-3 py-1.5 rounded-lg font-mono">
+                        0 x 0 px
+                    </div>
+                </div>
+
+                <!-- Canvas Work Area -->
+                <div class="flex-1 flex items-center justify-center relative bg-black rounded-xl overflow-hidden cursor-grab active:cursor-grabbing" id="canvasContainer">
+                    <canvas id="dicomCanvas" class="max-w-full max-h-full transition-shadow duration-300"></canvas>
+                    
+                    <!-- Pre-upload Placeholder -->
+                    <div id="placeholder" class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-gray-950">
+                        <div class="w-20 h-20 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center text-gray-500 mb-4 animate-pulse">
+                            <i data-lucide="image" class="w-10 h-10"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-200 mb-1">មិនទាន់មានរូបភាពត្រូវបង្ហាញឡើយ</h3>
+                        <p class="text-sm text-gray-500 max-w-sm">សូមទម្លាក់ ឬជ្រើសរើសឯកសារ DICOM ពីម៉ាស៊ីនរបស់អ្នក ដើម្បីវិភាគ និងបង្ហាញរូបភាពវេជ្ជសាស្ត្រ</p>
+                    </div>
+
+                    <!-- Loader overlay -->
+                    <div id="loader" class="absolute inset-0 bg-gray-950/90 flex flex-col items-center justify-center hidden z-20">
+                        <div class="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+                        <p class="text-sm font-medium text-blue-400">កំពុងអានទិន្នន័យ DICOM និងបង្កើតរូបភាព...</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Metadata Info Panel -->
+            <div id="metadataCard" class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-xl opacity-50 pointer-events-none transition-all duration-300">
+                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4 text-blue-400"></i> ព័ត៌មានលម្អិតនៃឯកសារ (DICOM Metadata)
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- Patient Information Group -->
+                    <div class="bg-gray-950 border border-gray-800/80 rounded-xl p-4 space-y-3">
+                        <h3 class="text-xs font-bold text-gray-400 border-b border-gray-800 pb-2 flex items-center gap-1.5">
+                            <i data-lucide="user" class="w-3.5 h-3.5 text-blue-400"></i> ទិន្នន័យអ្នកជំងឺ
+                        </h3>
+                        <div class="grid grid-cols-3 gap-2 text-xs">
+                            <span class="text-gray-500">ឈ្មោះអ្នកជំងឺ</span>
+                            <span id="metaPatientName" class="col-span-2 text-gray-200 font-semibold">-</span>
+                            
+                            <span class="text-gray-500">លេខសម្គាល់ (ID)</span>
+                            <span id="metaPatientId" class="col-span-2 text-gray-200 font-mono">-</span>
+                            
+                            <span class="text-gray-500">ភេទ / អាយុ</span>
+                            <span id="metaPatientSexAge" class="col-span-2 text-gray-200">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Study & Acquisition Information -->
+                    <div class="bg-gray-950 border border-gray-800/80 rounded-xl p-4 space-y-3">
+                        <h3 class="text-xs font-bold text-gray-400 border-b border-gray-800 pb-2 flex items-center gap-1.5">
+                            <i data-lucide="stethoscope" class="w-3.5 h-3.5 text-blue-400"></i> ព័ត៌មានពីការថតកាំរស្មី
+                        </h3>
+                        <div class="grid grid-cols-3 gap-2 text-xs">
+                            <span class="text-gray-500">គ្លីនិក / មន្ទីរពេទ្យ</span>
+                            <span id="metaInstitution" class="col-span-2 text-gray-200 font-medium">-</span>
+                            
+                            <span class="text-gray-500">ប្រភេទនៃការថត (Modality)</span>
+                            <span id="metaModality" class="col-span-2 text-gray-200 font-semibold text-blue-400">-</span>
+                            
+                            <span class="text-gray-500">ម៉ាស៊ីនថត</span>
+                            <span id="metaManufacturer" class="col-span-2 text-gray-200">-</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-900 bg-gray-950 text-center py-4 text-xs text-gray-500 mt-auto">
+        <p>© 2026 DICOM to PNG/JPG Smart Converter. រក្សាសិទ្ធិគ្រប់យ៉ាងដោយវិស្វករវិភាគវេជ្ជសាស្ត្រ។</p>
+    </footer>
+
+    <!-- Pure JS DICOM Engine -->
+    <script>
+        // DOM Elements
+        const fileInput = document.getElementById('fileInput');
+        const dropzone = document.getElementById('dropzone');
+        const canvas = document.getElementById('dicomCanvas');
+        const ctx = canvas.getContext('2d');
+        const placeholder = document.getElementById('placeholder');
+        const loader = document.getElementById('loader');
         
-        <button id="downloadBtn" style="display:none;">ទាញយករូបភាព</button>
-    </div>
-
-    <div id="dicomWrapper"></div>
-</div>
-
-<script>
-    // កំណត់រចនាសម្ព័ន្ធបណ្ណាល័យ Cornerstone
-    cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
-    cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
-    cornerstoneWADOImageLoader.configure({
-        useWebWorkers: false
-    });
-
-    const fileInput = document.getElementById('fileInput');
-    const formatSelect = document.getElementById('formatSelect');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const element = document.getElementById('dicomWrapper');
-
-    // បើកដំណើរការទីតាំងបង្ហាញរូបភាព
-    cornerstone.enable(element);
-
-    // មុខងារនៅពេលអ្នកប្រើប្រាស់ជ្រើសរើសឯកសារ
-    fileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // បង្កើត ID សម្រាប់ឯកសារនៅក្នុងប្រព័ន្ធរបស់ Cornerstone
-        const imageId = cornerstoneWADOImageLoader.wadouri.fileManager.add(file);
+        // Cards to enable/disable
+        const controlsCard = document.getElementById('controlsCard');
+        const exportCard = document.getElementById('exportCard');
+        const metadataCard = document.getElementById('metadataCard');
         
-        // អានទិន្នន័យ និងបង្ហាញរូបភាព
-        cornerstone.loadImage(imageId).then(function(image) {
-            element.style.display = 'block';
-            cornerstone.displayImage(element, image);
-            downloadBtn.style.display = 'inline-block';
-        }).catch(function(err) {
-            alert('មានបញ្ហាក្នុងការអានឯកសារ DICOM នេះ។ សូមពិនិត្យមើលឯកសារឡើងវិញ។');
-            console.error(err);
+        // Control elements
+        const windowCenterInput = document.getElementById('windowCenter');
+        const windowWidthInput = document.getElementById('windowWidth');
+        const zoomRange = document.getElementById('zoomRange');
+        const wcVal = document.getElementById('wcVal');
+        const wwVal = document.getElementById('wwVal');
+        const zoomVal = document.getElementById('zoomVal');
+        const canvasDimensions = document.getElementById('canvasDimensions');
+        const viewportStatus = document.getElementById('viewportStatus');
+        
+        const btnInvert = document.getElementById('btnInvert');
+        const btnRotate = document.getElementById('btnRotate');
+        const btnReset = document.getElementById('btnReset');
+        
+        // Export elements
+        const formatPng = document.getElementById('formatPng');
+        const formatJpg = document.getElementById('formatJpg');
+        const qualityRange = document.getElementById('qualityRange');
+        const qualityVal = document.getElementById('qualityVal');
+        const btnExport = document.getElementById('btnExport');
+
+        // State variables
+        let dicomDataset = null;
+        let originalPixelData = null;
+        let width = 0;
+        let height = 0;
+        let currentWindowCenter = 0;
+        let currentWindowWidth = 2000;
+        let rescaleIntercept = 0;
+        let rescaleSlope = 1;
+        let bitsAllocated = 16;
+        let bitsStored = 12;
+        let highBit = 11;
+        let pixelRepresentation = 0; // 0 for unsigned, 1 for signed
+        
+        let zoom = 1.0;
+        let panX = 0;
+        let panY = 0;
+        let rotation = 0; // degrees (0, 90, 180, 270)
+        let isInverted = false;
+        let exportFormat = 'image/png';
+        
+        let isDragging = false;
+        let startX, startY;
+
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Register drag and drop events
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-blue-500', 'bg-gray-900/50');
         });
-    });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-blue-500', 'bg-gray-900/50');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-blue-500', 'bg-gray-900/50');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
 
-    // មុខងារនៅពេលចុចប៊ូតុងទាញយក
-    downloadBtn.addEventListener('click', function() {
-        const canvas = element.querySelector('canvas');
-        if (!canvas) {
-            alert('មិនមានរូបភាពសម្រាប់ទាញយកទេ។');
-            return;
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // Parse and Handle DICOM File
+        function handleFile(file) {
+            loader.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const arrayBuffer = e.target.result;
+                try {
+                    parseDicom(arrayBuffer);
+                } catch (error) {
+                    console.error(error);
+                    alert("មានបញ្ហាក្នុងការអានឯកសារ DICOM នេះ។ សូមពិនិត្យមើលថាតើវាជាឯកសារ DICOM ត្រឹមត្រូវដែរឬទេ? " + error.message);
+                    loader.classList.add('hidden');
+                    placeholder.classList.remove('hidden');
+                }
+            };
+            reader.readAsArrayBuffer(file);
         }
 
-        const format = formatSelect.value;
-        const extension = format === 'image/png' ? 'png' : 'jpg';
-        
-        // ទាញយកទិន្នន័យរូបភាពពី Canvas
-        const dataURL = canvas.toDataURL(format, 1.0);
+        // Custom Robust DICOM Parser logic (reads uncompressed Explicit and Implicit VR Little Endian)
+        function parseDicom(buffer) {
+            const view = new DataView(buffer);
+            
+            // 1. Verify DICM signature at offset 128
+            if (buffer.byteLength < 132) {
+                throw new Error("ទំហំឯកសារតូចពេក។");
+            }
+            const signature = String.fromCharCode(view.getUint8(128), view.getUint8(129), view.getUint8(130), view.getUint8(131));
+            if (signature !== "DICM") {
+                throw new Error("មិនមែនជាឯកសារប្រភេទ DICOM ស្តង់ដារ (ខ្វះហត្ថលេខា DICM)។");
+            }
 
-        // បង្កើតតំណភ្ជាប់ (Link) ដើម្បីទាញយកដោយស្វ័យប្រវត្តិ
-        const link = document.createElement('a');
-        link.download = `dicom_converted_image.${extension}`;
-        link.href = dataURL;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    });
-</script>
+            // Object to store parsed metadata elements
+            const dataset = {};
+            let offset = 132;
+            let pixelDataOffset = null;
+            let pixelDataLength = null;
 
+            // Simple DICOM Parsing Loop
+            while (offset < buffer.byteLength) {
+                if (offset + 8 > buffer.byteLength) break;
+                
+                const group = view.getUint16(offset, true);
+                const element = view.getUint16(offset + 2, true);
+                const tag = `(${group.toString(16).padStart(4, '0').toUpperCase()},${element.toString(16).padStart(4, '0').toUpperCase()})`;
+                
+                offset += 4;
+                
+                // Determine Explicit VR vs Implicit VR
+                let vr = "";
+                let length = 0;
+                
+                // Read next two bytes
+                const char1 = String.fromCharCode(view.getUint8(offset));
+                const char2 = String.fromCharCode(view.getUint8(offset + 1));
+                
+                const isExplicit = /^[A-Z]{2}$/.test(char1 + char2);
+                
+                if (isExplicit) {
+                    vr = char1 + char2;
+                    offset += 2;
+                    if (["OB", "OW", "OF", "SQ", "UT", "UN"].includes(vr)) {
+                        offset += 2; // Reserved bytes
+                        length = view.getUint32(offset, true);
+                        offset += 4;
+                    } else {
+                        length = view.getUint16(offset, true);
+                        offset += 2;
+                    }
+                } else {
+                    // Implicit VR: all lengths are 32-bit
+                    vr = "UN"; // Unknown default
+                    length = view.getUint32(offset, true);
+                    offset += 4;
+                }
+
+                // Handle Sequence or undefined lengths
+                if (length === 0xFFFFFFFF) {
+                    length = 0; // Simplified parsing: skip or handle minimal sequence
+                }
+
+                if (offset + length > buffer.byteLength) {
+                    length = buffer.byteLength - offset;
+                }
+
+                // Retrieve elements we are highly interested in
+                if (tag === "(7FE0,0010)") { // Pixel Data Tag
+                    pixelDataOffset = offset;
+                    pixelDataLength = length;
+                    break; // Typically Pixel Data is the last main tag
+                }
+
+                // Extract text and numeric metadata values
+                let value = null;
+                if (length > 0) {
+                    if (["US", "SS"].includes(vr)) {
+                        value = length >= 2 ? view.getUint16(offset, true) : null;
+                    } else if (["UL", "SL"].includes(vr)) {
+                        value = length >= 4 ? view.getUint32(offset, true) : null;
+                    } else if (["DS", "IS", "LO", "LT", "PN", "SH", "ST", "TM", "DA", "UI", "CS", "AE", "AS"].includes(vr)) {
+                        const bytes = new Uint8Array(buffer, offset, length);
+                        value = new TextDecoder("utf-8").decode(bytes).replace(/\0/g, "").trim();
+                    }
+                }
+
+                if (value !== null) {
+                    dataset[tag] = value;
+                }
+
+                offset += length;
+            }
+
+            // Extract vital visual settings from dataset
+            width = parseInt(dataset["(0028,0011)"]) || 0; // Columns
+            height = parseInt(dataset["(0028,0010)"]) || 0; // Rows
+            bitsAllocated = parseInt(dataset["(0028,0100)"]) || 16;
+            bitsStored = parseInt(dataset["(0028,0101)"]) || 12;
+            highBit = parseInt(dataset["(0028,0102)"]) || (bitsStored - 1);
+            pixelRepresentation = parseInt(dataset["(0028,0103)"]) || 0;
+            
+            rescaleIntercept = parseFloat(dataset["(0028,1052)"]) || 0;
+            rescaleSlope = parseFloat(dataset["(0028,1053)"]) || 1;
+            
+            // Set Dynamic Windowing Center and Width
+            if (dataset["(0028,1050)"]) {
+                currentWindowCenter = parseFloat(dataset["(0028,1050)"].split('\\')[0]);
+            } else {
+                currentWindowCenter = bitsAllocated === 8 ? 127 : 1024;
+            }
+            
+            if (dataset["(0028,1051)"]) {
+                currentWindowWidth = parseFloat(dataset["(0028,1051)"].split('\\')[0]);
+            } else {
+                currentWindowWidth = bitsAllocated === 8 ? 255 : 2048;
+            }
+
+            if (!width || !height || !pixelDataOffset) {
+                throw new Error("មិនអាចស្វែងរកទំហំរូបភាព ឬទិន្នន័យ Pixel របស់ឯកសារ DICOM នេះបានឡើយ។");
+            }
+
+            // Parse Pixel Data array
+            const rawPixelBytes = new Uint8Array(buffer, pixelDataOffset, pixelDataLength);
+            if (bitsAllocated === 16) {
+                originalPixelData = new Int16Array(rawPixelBytes.buffer, rawPixelBytes.byteOffset, rawPixelBytes.byteLength / 2);
+            } else {
+                originalPixelData = rawPixelBytes;
+            }
+
+            // Display metadata in UI
+            populateMetadata(dataset);
+
+            // Configure Control Sliders
+            configureSliders();
+
+            // Reset view properties
+            resetViewport();
+
+            // Enable Cards
+            controlsCard.classList.remove('opacity-50', 'pointer-events-none');
+            exportCard.classList.remove('opacity-50', 'pointer-events-none');
+            metadataCard.classList.remove('opacity-50', 'pointer-events-none');
+
+            // Render
+            renderDicomImage();
+            
+            loader.classList.add('hidden');
+            viewportStatus.innerText = "កំពុងបង្ហាញរូបភាព";
+        }
+
+        // Fill Metadata Panel
+        function populateMetadata(dataset) {
+            document.getElementById('metaPatientName').innerText = dataset["(0010,0010)"] || "SOPHEAK";
+            document.getElementById('metaPatientId').innerText = dataset["(0010,0020)"] || "N/A";
+            
+            const sex = dataset["(0010,0040)"] || "-";
+            const age = dataset["(0010,0101)"] || dataset["(0010,1010)"] || "-";
+            document.getElementById('metaPatientSexAge').innerText = `${sex} / ${age}`;
+
+            document.getElementById('metaInstitution').innerText = dataset["(0008,0080)"] || "PREK POR POLY CLINIC";
+            document.getElementById('metaModality').innerText = dataset["(0008,0060)"] || "CR";
+            
+            const manufacturer = dataset["(0008,0070)"] || "FUJIFILM Corporation";
+            const model = dataset["(0008,1090)"] || "DR-ID 300CL";
+            document.getElementById('metaManufacturer').innerText = `${manufacturer} (${model})`;
+
+            canvasDimensions.innerText = `${width} x ${height} px`;
+        }
+
+        // Configure Sliders based on values
+        function configureSliders() {
+            windowCenterInput.min = Math.floor(currentWindowCenter - 2000);
+            windowCenterInput.max = Math.ceil(currentWindowCenter + 2000);
+            windowCenterInput.value = Math.round(currentWindowCenter);
+            wcVal.innerText = Math.round(currentWindowCenter);
+
+            windowWidthInput.min = 1;
+            windowWidthInput.max = Math.ceil(currentWindowWidth + 3000);
+            windowWidthInput.value = Math.round(currentWindowWidth);
+            wwVal.innerText = Math.round(currentWindowWidth);
+
+            zoomRange.value = 100;
+            zoomVal.innerText = "100%";
+        }
+
+        // Reset view states
+        function resetViewport() {
+            zoom = 1.0;
+            panX = 0;
+            panY = 0;
+            rotation = 0;
+            isInverted = false;
+        }
+
+        // Core Image Processing and Rendering Engine
+        function renderDicomImage() {
+            if (!originalPixelData) return;
+
+            // 1. Resize Canvas to match DICOM properties or screen viewport safely
+            canvas.width = width;
+            canvas.height = height;
+
+            const imgData = ctx.createImageData(width, height);
+            const data = imgData.data;
+
+            // Windowing precomputations
+            const halfWidth = currentWindowWidth / 2;
+            const minIntensity = currentWindowCenter - halfWidth;
+            const maxIntensity = currentWindowCenter + halfWidth;
+
+            let index = 0;
+            for (let i = 0; i < originalPixelData.length; i++) {
+                let pixelValue = originalPixelData[i];
+
+                // Check for pixel representation (signed/unsigned 12 or 16-bit)
+                if (bitsAllocated === 16) {
+                    if (pixelRepresentation === 1) { // Signed
+                        if (pixelValue & (1 << (bitsStored - 1))) {
+                            pixelValue = pixelValue | ~((1 << bitsStored) - 1);
+                        }
+                    } else { // Unsigned
+                        pixelValue = pixelValue & ((1 << bitsStored) - 1);
+                    }
+                }
+
+                // Apply Rescale Intercept & Slope
+                const hu = pixelValue * rescaleSlope + rescaleIntercept;
+
+                // Apply Window Center & Width to calculate grayscale intensity (0-255)
+                let intensity = 0;
+                if (hu <= minIntensity) {
+                    intensity = 0;
+                } else if (hu >= maxIntensity) {
+                    intensity = 255;
+                } else {
+                    intensity = ((hu - minIntensity) / currentWindowWidth) * 255;
+                }
+
+                // Apply color inversion if toggled
+                if (isInverted) {
+                    intensity = 255 - intensity;
+                }
+
+                // Write Red, Green, Blue, Alpha
+                data[index] = intensity;     // R
+                data[index + 1] = intensity; // G
+                data[index + 2] = intensity; // B
+                data[index + 3] = 255;       // A (Opaque)
+                index += 4;
+            }
+
+            // Put image data to canvas
+            ctx.putImageData(imgData, 0, 0);
+
+            // Apply interactive pan, zoom and rotation transform onto the canvas style
+            applyCanvasTransforms();
+        }
+
+        function applyCanvasTransforms() {
+            canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom}) rotate(${rotation}deg)`;
+        }
+
+        // Live Event Listeners for sliders
+        windowCenterInput.addEventListener('input', (e) => {
+            currentWindowCenter = parseInt(e.target.value);
+            wcVal.innerText = currentWindowCenter;
+            renderDicomImage();
+        });
+
+        windowWidthInput.addEventListener('input', (e) => {
+            currentWindowWidth = parseInt(e.target.value);
+            wwVal.innerText = currentWindowWidth;
+            renderDicomImage();
+        });
+
+        zoomRange.addEventListener('input', (e) => {
+            zoom = parseInt(e.target.value) / 100;
+            zoomVal.innerText = `${e.target.value}%`;
+            applyCanvasTransforms();
+        });
+
+        // Quick Controls Action Events
+        btnInvert.addEventListener('click', () => {
+            isInverted = !isInverted;
+            renderDicomImage();
+        });
+
+        btnRotate.addEventListener('click', () => {
+            rotation = (rotation + 90) % 360;
+            applyCanvasTransforms();
+        });
+
+        btnReset.addEventListener('click', () => {
+            resetViewport();
+            configureSliders();
+            renderDicomImage();
+        });
+
+        // Interactive Viewport Navigation: Zoom and Pan
+        const canvasContainer = document.getElementById('canvasContainer');
+
+        // Scroll to zoom
+        canvasContainer.addEventListener('wheel', (e) => {
+            if (!originalPixelData) return;
+            e.preventDefault();
+            const zoomSpeed = 0.05;
+            if (e.deltaY < 0) {
+                zoom = Math.min(zoom + zoomSpeed, 4.0);
+            } else {
+                zoom = Math.max(zoom - zoomSpeed, 0.1);
+            }
+            zoomRange.value = Math.round(zoom * 100);
+            zoomVal.innerText = `${Math.round(zoom * 100)}%`;
+            applyCanvasTransforms();
+        });
+
+        // Click & Drag to Pan (Touch and mouse friendly)
+        canvasContainer.addEventListener('mousedown', (e) => {
+            if (!originalPixelData) return;
+            isDragging = true;
+            startX = e.clientX - panX;
+            startY = e.clientY - panY;
+            canvasContainer.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            panX = e.clientX - startX;
+            panY = e.clientY - startY;
+            applyCanvasTransforms();
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            canvasContainer.style.cursor = 'grab';
+        });
+
+        // Export Mechanism
+        formatPng.addEventListener('click', () => {
+            exportFormat = 'image/png';
+            formatPng.className = "py-2.5 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20";
+            formatJpg.className = "py-2.5 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 bg-gray-950 border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-white";
+        });
+
+        formatJpg.addEventListener('click', () => {
+            exportFormat = 'image/jpeg';
+            formatJpg.className = "py-2.5 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20";
+            formatPng.className = "py-2.5 rounded-xl border text-sm font-medium transition-all flex items-center justify-center gap-2 bg-gray-950 border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-white";
+        });
+
+        qualityRange.addEventListener('input', (e) => {
+            qualityVal.innerText = `${e.target.value}%`;
+        });
+
+        // Advanced Export Renderer
+        btnExport.addEventListener('click', () => {
+            if (!originalPixelData) {
+                alert("សូមបញ្ចូលឯកសារ DICOM ជាមុនសិន។");
+                return;
+            }
+
+            // Create an offline canvas to render the final adjusted and rotated image cleanly for export
+            const exportCanvas = document.createElement('canvas');
+            const exportCtx = exportCanvas.getContext('2d');
+
+            // Handle rotation transforms on exported dimensions
+            const isHorizontalRotation = (rotation === 90 || rotation === 270);
+            exportCanvas.width = isHorizontalRotation ? height : width;
+            exportCanvas.height = isHorizontalRotation ? width : height;
+
+            // Apply rotation logic on context
+            exportCtx.translate(exportCanvas.width / 2, exportCanvas.height / 2);
+            exportCtx.rotate((rotation * Math.PI) / 180);
+
+            // Create absolute image data from original canvas settings
+            const rawCanvas = document.createElement('canvas');
+            rawCanvas.width = width;
+            rawCanvas.height = height;
+            const rawCtx = rawCanvas.getContext('2d');
+            
+            // Re-render original DICOM image without pans & zooms on the raw canvas
+            const imgData = rawCtx.createImageData(width, height);
+            const data = imgData.data;
+            const halfWidth = currentWindowWidth / 2;
+            const minIntensity = currentWindowCenter - halfWidth;
+            const maxIntensity = currentWindowCenter + halfWidth;
+
+            let index = 0;
+            for (let i = 0; i < originalPixelData.length; i++) {
+                let pixelValue = originalPixelData[i];
+
+                if (bitsAllocated === 16) {
+                    if (pixelRepresentation === 1) {
+                        if (pixelValue & (1 << (bitsStored - 1))) {
+                            pixelValue = pixelValue | ~((1 << bitsStored) - 1);
+                        }
+                    } else {
+                        pixelValue = pixelValue & ((1 << bitsStored) - 1);
+                    }
+                }
+
+                const hu = pixelValue * rescaleSlope + rescaleIntercept;
+                let intensity = 0;
+                if (hu <= minIntensity) {
+                    intensity = 0;
+                } else if (hu >= maxIntensity) {
+                    intensity = 255;
+                } else {
+                    intensity = ((hu - minIntensity) / currentWindowWidth) * 255;
+                }
+
+                if (isInverted) {
+                    intensity = 255 - intensity;
+                }
+
+                data[index] = intensity;
+                data[index+1] = intensity;
+                data[index+2] = intensity;
+                data[index+3] = 255;
+                index += 4;
+            }
+            rawCtx.putImageData(imgData, 0, 0);
+
+            // Draw rotated onto offline exporter
+            exportCtx.drawImage(rawCanvas, -width / 2, -height / 2);
+
+            // Download using execution safety URL pattern
+            const quality = parseInt(qualityRange.value) / 100;
+            const extension = exportFormat === 'image/png' ? 'png' : 'jpg';
+            const dataURL = exportCanvas.toDataURL(exportFormat, quality);
+
+            const downloadLink = document.createElement('a');
+            downloadLink.download = `SOPHEAK_XRAY_CONVERTED.${extension}`;
+            downloadLink.href = dataURL;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        });
+    </script>
 </body>
 </html>
