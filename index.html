@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Medical Standard DICOM Parser (Highly Robust) -->
+    <script src="https://unpkg.com/dicom-parser@1.8.13/dist/dicomParser.min.js"></script>
     <!-- Google Fonts (Kantumruy Pro for professional Khmer text) -->
     <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
@@ -69,14 +71,14 @@
                 
                 <!-- Dropzone -->
                 <div id="dropzone" class="border-2 border-dashed border-gray-700 hover:border-blue-500/50 bg-gray-950/50 hover:bg-gray-950 transition-all rounded-xl p-6 text-center cursor-pointer group relative overflow-hidden">
-                    <input type="file" id="fileInput" accept=".dcm,.dicom,application/dicom" class="hidden" />
+                    <input type="file" id="fileInput" class="hidden" title="ជ្រើសរើសឯកសារ DICOM" />
                     <div class="flex flex-col items-center justify-center gap-3">
                         <div class="w-12 h-12 rounded-full bg-gray-900 flex items-center justify-center text-gray-400 group-hover:text-blue-400 transition-colors border border-gray-800 group-hover:border-blue-500/30">
                             <i data-lucide="cloud-upload" class="w-6 h-6"></i>
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-300">សូមជ្រើសរើស ឬទាញទម្លាក់ឯកសារ</p>
-                            <p class="text-xs text-gray-500 mt-1">គាំទ្រប្រភេទឯកសារ .dcm ឬ .dicom</p>
+                            <p class="text-xs text-gray-500 mt-1">គាំទ្រឯកសារ DICOM គ្រប់ប្រភេទ (ទោះគ្មានកន្ទុយ .dcm ក៏ដោយ)</p>
                         </div>
                     </div>
                 </div>
@@ -302,7 +304,6 @@
         const btnExport = document.getElementById('btnExport');
 
         // State variables
-        let dicomDataset = null;
         let originalPixelData = null;
         let width = 0;
         let height = 0;
@@ -364,7 +365,7 @@
                     parseDicom(arrayBuffer);
                 } catch (error) {
                     console.error(error);
-                    alert("មានបញ្ហាក្នុងការអានឯកសារ DICOM នេះ។ សូមពិនិត្យមើលថាតើវាជាឯកសារ DICOM ត្រឹមត្រូវដែរឬទេ? " + error.message);
+                    alert("មានបញ្ហាក្នុងការអានឯកសារ DICOM នេះ។ សូមពិនិត្យមើលថាតើវាជាឯកសារ DICOM ត្រឹមត្រូវដែរឬទេ? \n\nកំហុសបច្ចេកទេស: " + error.message);
                     loader.classList.add('hidden');
                     placeholder.classList.remove('hidden');
                 }
@@ -372,133 +373,71 @@
             reader.readAsArrayBuffer(file);
         }
 
-        // Custom Robust DICOM Parser logic (reads uncompressed Explicit and Implicit VR Little Endian)
+        // Professional Standard Parser using dicomParser Library
         function parseDicom(buffer) {
-            const view = new DataView(buffer);
+            const byteArray = new Uint8Array(buffer);
             
-            // 1. Verify DICM signature at offset 128
-            if (buffer.byteLength < 132) {
-                throw new Error("ទំហំឯកសារតូចពេក។");
-            }
-            const signature = String.fromCharCode(view.getUint8(128), view.getUint8(129), view.getUint8(130), view.getUint8(131));
-            if (signature !== "DICM") {
-                throw new Error("មិនមែនជាឯកសារប្រភេទ DICOM ស្តង់ដារ (ខ្វះហត្ថលេខា DICM)។");
-            }
-
-            // Object to store parsed metadata elements
-            const dataset = {};
-            let offset = 132;
-            let pixelDataOffset = null;
-            let pixelDataLength = null;
-
-            // Simple DICOM Parsing Loop
-            while (offset < buffer.byteLength) {
-                if (offset + 8 > buffer.byteLength) break;
-                
-                const group = view.getUint16(offset, true);
-                const element = view.getUint16(offset + 2, true);
-                const tag = `(${group.toString(16).padStart(4, '0').toUpperCase()},${element.toString(16).padStart(4, '0').toUpperCase()})`;
-                
-                offset += 4;
-                
-                // Determine Explicit VR vs Implicit VR
-                let vr = "";
-                let length = 0;
-                
-                // Read next two bytes
-                const char1 = String.fromCharCode(view.getUint8(offset));
-                const char2 = String.fromCharCode(view.getUint8(offset + 1));
-                
-                const isExplicit = /^[A-Z]{2}$/.test(char1 + char2);
-                
-                if (isExplicit) {
-                    vr = char1 + char2;
-                    offset += 2;
-                    if (["OB", "OW", "OF", "SQ", "UT", "UN"].includes(vr)) {
-                        offset += 2; // Reserved bytes
-                        length = view.getUint32(offset, true);
-                        offset += 4;
-                    } else {
-                        length = view.getUint16(offset, true);
-                        offset += 2;
-                    }
-                } else {
-                    // Implicit VR: all lengths are 32-bit
-                    vr = "UN"; // Unknown default
-                    length = view.getUint32(offset, true);
-                    offset += 4;
-                }
-
-                // Handle Sequence or undefined lengths
-                if (length === 0xFFFFFFFF) {
-                    length = 0; // Simplified parsing: skip or handle minimal sequence
-                }
-
-                if (offset + length > buffer.byteLength) {
-                    length = buffer.byteLength - offset;
-                }
-
-                // Retrieve elements we are highly interested in
-                if (tag === "(7FE0,0010)") { // Pixel Data Tag
-                    pixelDataOffset = offset;
-                    pixelDataLength = length;
-                    break; // Typically Pixel Data is the last main tag
-                }
-
-                // Extract text and numeric metadata values
-                let value = null;
-                if (length > 0) {
-                    if (["US", "SS"].includes(vr)) {
-                        value = length >= 2 ? view.getUint16(offset, true) : null;
-                    } else if (["UL", "SL"].includes(vr)) {
-                        value = length >= 4 ? view.getUint32(offset, true) : null;
-                    } else if (["DS", "IS", "LO", "LT", "PN", "SH", "ST", "TM", "DA", "UI", "CS", "AE", "AS"].includes(vr)) {
-                        const bytes = new Uint8Array(buffer, offset, length);
-                        value = new TextDecoder("utf-8").decode(bytes).replace(/\0/g, "").trim();
-                    }
-                }
-
-                if (value !== null) {
-                    dataset[tag] = value;
-                }
-
-                offset += length;
+            let dataset;
+            try {
+                // Parse using international medical-standard engine
+                dataset = dicomParser.parseDicom(byteArray);
+            } catch (err) {
+                throw new Error("ការវិភាគរចនាសម្ព័ន្ធ DICOM បរាជ័យ: " + err.message);
             }
 
-            // Extract vital visual settings from dataset
-            width = parseInt(dataset["(0028,0011)"]) || 0; // Columns
-            height = parseInt(dataset["(0028,0010)"]) || 0; // Rows
-            bitsAllocated = parseInt(dataset["(0028,0100)"]) || 16;
-            bitsStored = parseInt(dataset["(0028,0101)"]) || 12;
-            highBit = parseInt(dataset["(0028,0102)"]) || (bitsStored - 1);
-            pixelRepresentation = parseInt(dataset["(0028,0103)"]) || 0;
+            // Extract vital visual dimensions and configurations
+            width = dataset.uint16('x00280011') || 0; // Columns
+            height = dataset.uint16('x00280010') || 0; // Rows
+            bitsAllocated = dataset.uint16('x00280100') || 16;
+            bitsStored = dataset.uint16('x00280101') || 12;
+            highBit = dataset.uint16('x00280102') || (bitsStored - 1);
+            pixelRepresentation = dataset.uint16('x00280103') || 0;
             
-            rescaleIntercept = parseFloat(dataset["(0028,1052)"]) || 0;
-            rescaleSlope = parseFloat(dataset["(0028,1053)"]) || 1;
+            rescaleIntercept = dataset.floatString('x00281052') || 0;
+            rescaleSlope = dataset.floatString('x00281053') || 1;
             
-            // Set Dynamic Windowing Center and Width
-            if (dataset["(0028,1050)"]) {
-                currentWindowCenter = parseFloat(dataset["(0028,1050)"].split('\\')[0]);
+            // Extract Window center & width strings
+            const wcString = dataset.string('x00281050');
+            const wwString = dataset.string('x00281051');
+            
+            if (wcString) {
+                currentWindowCenter = parseFloat(wcString.split('\\')[0]);
             } else {
                 currentWindowCenter = bitsAllocated === 8 ? 127 : 1024;
             }
             
-            if (dataset["(0028,1051)"]) {
-                currentWindowWidth = parseFloat(dataset["(0028,1051)"].split('\\')[0]);
+            if (wwString) {
+                currentWindowWidth = parseFloat(wwString.split('\\')[0]);
             } else {
                 currentWindowWidth = bitsAllocated === 8 ? 255 : 2048;
             }
 
-            if (!width || !height || !pixelDataOffset) {
-                throw new Error("មិនអាចស្វែងរកទំហំរូបភាព ឬទិន្នន័យ Pixel របស់ឯកសារ DICOM នេះបានឡើយ។");
+            // Locate and Extract Pixel Data Element
+            const pixelDataElement = dataset.elements['x7fe00010'];
+            if (!pixelDataElement) {
+                throw new Error("មិនអាចស្វែងរកទិន្នន័យ Pixel Data (7FE0,0010) របស់ឯកសារនេះឡើយ។");
             }
 
-            // Parse Pixel Data array
-            const rawPixelBytes = new Uint8Array(buffer, pixelDataOffset, pixelDataLength);
+            const pixelDataOffset = pixelDataElement.dataOffset;
+            const pixelDataLength = pixelDataElement.length;
+
+            if (!width || !height) {
+                throw new Error("មិនទាន់ស្គាល់ទំហំ Columns (ទទឹង) ឬ Rows (កម្ពស់) របស់រូបភាពឡើយ។");
+            }
+
+            // Safely extract pixel values avoiding standard Uint8Array alignment crashes
             if (bitsAllocated === 16) {
-                originalPixelData = new Int16Array(rawPixelBytes.buffer, rawPixelBytes.byteOffset, rawPixelBytes.byteLength / 2);
+                const byteOffset = byteArray.byteOffset + pixelDataOffset;
+                // Check memory boundary alignment for 16-bit Int
+                if (byteOffset % 2 === 0) {
+                    originalPixelData = new Int16Array(byteArray.buffer, byteOffset, pixelDataLength / 2);
+                } else {
+                    // Make a fast copy of unaligned memory block to align properly
+                    const sliced = byteArray.buffer.slice(byteOffset, byteOffset + pixelDataLength);
+                    originalPixelData = new Int16Array(sliced);
+                }
             } else {
-                originalPixelData = rawPixelBytes;
+                originalPixelData = new Uint8Array(byteArray.buffer, byteArray.byteOffset + pixelDataOffset, pixelDataLength);
             }
 
             // Display metadata in UI
@@ -522,20 +461,20 @@
             viewportStatus.innerText = "កំពុងបង្ហាញរូបភាព";
         }
 
-        // Fill Metadata Panel
+        // Fill Metadata Panel safely using dicomParser string extractions
         function populateMetadata(dataset) {
-            document.getElementById('metaPatientName').innerText = dataset["(0010,0010)"] || "SOPHEAK";
-            document.getElementById('metaPatientId').innerText = dataset["(0010,0020)"] || "N/A";
+            document.getElementById('metaPatientName').innerText = dataset.string('x00100010') || "SOPHEAK";
+            document.getElementById('metaPatientId').innerText = dataset.string('x00100020') || "N/A";
             
-            const sex = dataset["(0010,0040)"] || "-";
-            const age = dataset["(0010,0101)"] || dataset["(0010,1010)"] || "-";
+            const sex = dataset.string('x00100040') || "-";
+            const age = dataset.string('x00101010') || dataset.string('x00101020') || "-";
             document.getElementById('metaPatientSexAge').innerText = `${sex} / ${age}`;
 
-            document.getElementById('metaInstitution').innerText = dataset["(0008,0080)"] || "PREK POR POLY CLINIC";
-            document.getElementById('metaModality').innerText = dataset["(0008,0060)"] || "CR";
+            document.getElementById('metaInstitution').innerText = dataset.string('x00080080') || "PREK POR POLY CLINIC";
+            document.getElementById('metaModality').innerText = dataset.string('x00080060') || "CR";
             
-            const manufacturer = dataset["(0008,0070)"] || "FUJIFILM Corporation";
-            const model = dataset["(0008,1090)"] || "DR-ID 300CL";
+            const manufacturer = dataset.string('x00080070') || "FUJIFILM Corporation";
+            const model = dataset.string('x00081090') || "DR-ID 300CL";
             document.getElementById('metaManufacturer').innerText = `${manufacturer} (${model})`;
 
             canvasDimensions.innerText = `${width} x ${height} px`;
